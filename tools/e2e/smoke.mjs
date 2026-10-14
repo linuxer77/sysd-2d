@@ -1,0 +1,17 @@
+import { chromium } from "playwright-core";
+const url = process.argv[2] ?? "http://127.0.0.1:5173/";
+const out = process.argv[3] ?? "/tmp/claude-1000/shots";
+import { mkdirSync } from "node:fs"; mkdirSync(out, { recursive: true });
+const browser = await chromium.launch({ executablePath: "/usr/bin/chromium", args: ["--no-sandbox"] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+const errors = [];
+page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+page.on("pageerror", (e) => errors.push("PAGEERROR " + e.message));
+await page.goto(url, { waitUntil: "networkidle" });
+await page.waitForTimeout(800);
+await page.screenshot({ path: `${out}/home.png` });
+console.log("title:", await page.title());
+console.log("h1:", await page.locator("h1").first().innerText());
+console.log("buttons:", (await page.locator("button.card").allInnerTexts()).map((t) => t.split("\n")[0]).join(" | "));
+console.log("errors:", JSON.stringify(errors));
+await browser.close();

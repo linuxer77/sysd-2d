@@ -1,0 +1,22 @@
+{
+  "name": "@sysd/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@fastify/cors": "^11.0.0",
+    "@fastify/static": "^10.1.6",
+    "@sysd/match": "workspace:*",
+    "@sysd/shared": "workspace:*",
+    "@sysd/sim": "workspace:*",
+    "fastify": "^5.4.0",
+    "socket.io": "^4.8.0"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.0"
+  },
+  "scripts": {
+    "dev": "tsx watch --conditions=development src/index.ts",
+    "start": "tsx --conditions=development src/index.ts"
+  }
+}

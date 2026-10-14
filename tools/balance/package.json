@@ -1,0 +1,11 @@
+{
+  "name": "@sysd/balance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@sysd/sim": "workspace:*", "@sysd/shared": "workspace:*", "@sysd/match": "workspace:*", "@sysd/run": "workspace:*" },
+  "scripts": {
+    "sweep": "tsx --conditions=development src/sweep.ts",
+    "cli": "tsx --conditions=development src/cli.ts"
+  }
+}

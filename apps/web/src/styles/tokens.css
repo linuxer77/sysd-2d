@@ -1,0 +1,72 @@
+/*
+ * Design tokens. Tokyo Night, taken straight from the approved prototype.
+ * Tier 1: primitives (never used by components).  Tier 2: semantic.  Tier 3: role (what each kind of piece looks like).
+ * Motion tokens are shared with the canvas: easing.ts exports the very same curves.
+ */
+:root {
+  /* tier 1 · base palette. Themes replace exactly these (see theme/themes.ts). Tokyo Night is the default. */
+  --c-bg: #1a1b26;   --c-bg-dark: #16161e;  --c-root: #13141c;  --c-panel: #1f2335;  --c-panel-2: #222536;
+  --c-hl: #292e42;   --c-sel: #283457;      --c-border: #2a2e45;
+  --c-fg: #c0caf5;   --c-fg-2: #a9b1d6;     --c-dim: #565f89;
+  --c-blue: #7aa2f7; --c-cyan: #7dcfff;     --c-teal: #73daca;  --c-green: #9ece6a;
+  --c-yellow: #e0af68; --c-orange: #ff9e64; --c-red: #f7768e;   --c-purple: #bb9af7; --c-magenta: #ff007c; --c-steel: #9aa5ce;
+  --accent: #7aa2f7;
+
+  /* derived: never set by a theme, always mixed from the base so every theme stays coherent */
+  --c-sel-border: color-mix(in srgb, var(--accent) 38%, var(--c-sel));
+  --c-grid: color-mix(in srgb, var(--c-fg) 8%, var(--c-bg));
+  --c-edge: color-mix(in srgb, var(--c-fg) 22%, var(--c-bg));
+  --c-line-hi: color-mix(in srgb, var(--c-fg) 16%, var(--c-bg));
+  --c-go-bg: color-mix(in srgb, var(--accent) 14%, var(--c-bg));
+  --c-go-border: color-mix(in srgb, var(--accent) 40%, var(--c-bg));
+  --c-go-hover: color-mix(in srgb, var(--accent) 22%, var(--c-bg));
+  --c-go-fg: color-mix(in srgb, var(--accent) 78%, var(--c-fg));
+  --c-go-fg-hi: color-mix(in srgb, var(--accent) 60%, white);
+  --c-ok-bg: color-mix(in srgb, var(--c-green) 9%, var(--c-bg));   --c-ok-border: color-mix(in srgb, var(--c-green) 26%, var(--c-bg));
+  --c-bad-bg: color-mix(in srgb, var(--c-red) 9%, var(--c-bg));    --c-bad-border: color-mix(in srgb, var(--c-red) 28%, var(--c-bg));
+  --c-bad-bg-2: color-mix(in srgb, var(--c-red) 11%, var(--c-bg)); --c-bad-border-2: color-mix(in srgb, var(--c-red) 32%, var(--c-bg));
+  --c-warn-bg: color-mix(in srgb, var(--c-yellow) 8%, var(--c-bg)); --c-warn-border: color-mix(in srgb, var(--c-yellow) 24%, var(--c-bg));
+  --c-info-bg: color-mix(in srgb, var(--c-cyan) 9%, var(--c-bg));  --c-info-border: color-mix(in srgb, var(--c-cyan) 28%, var(--c-bg));
+  --c-sw-bg: color-mix(in srgb, var(--c-cyan) 13%, var(--c-bg));   --c-sw-border: color-mix(in srgb, var(--c-cyan) 36%, var(--c-bg));
+  --c-hover-card: color-mix(in srgb, var(--accent) 7%, var(--c-panel));
+  --violet: oklch(from var(--accent) l c calc(h + 34));
+  --page: color-mix(in srgb, var(--c-bg) 90%, black);
+  --ink: color-mix(in srgb, var(--c-fg) 55%, white);
+
+  /* tier 2 · semantic */
+  --bg: var(--c-bg); --bg-chrome: var(--c-bg-dark); --bg-panel: var(--c-panel); --bg-hover: var(--c-hl); --bg-selected: var(--c-sel);
+  --line: var(--c-border); --text: var(--c-fg); --text-2: var(--c-fg-2); --text-dim: var(--c-dim);
+  --good: var(--c-green); --warn: var(--c-yellow); --bad: var(--c-red);
+  --focus: var(--c-cyan);
+
+  /* tier 3 · role: one colour per kind of piece, so new content is coloured by rule */
+  --role-visitors: var(--c-blue);  --role-balancer: var(--c-green);   --role-server: var(--c-purple);
+  --role-cache: var(--c-yellow);   --role-network: var(--c-cyan);     --role-database: var(--c-red);
+  --role-replica: var(--c-orange); --role-queue: var(--c-teal);       --role-worker: var(--c-steel);
+  --role-limiter: var(--c-magenta);
+
+  /* type */
+  --font-site: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --t-xs: 11px; --t-sm: 12px; --t-md: 13px; --t-lg: 14.5px; --t-xl: 18px; --t-2xl: 24px; --t-3xl: 34px;
+  --radius: 6px; --radius-lg: 10px;
+
+  /* motion */
+  --dur-fast: 140ms; --dur-base: 220ms; --dur-slow: 360ms; --dur-hp: 520ms;
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-snap: cubic-bezier(.2, .9, .3, 1);
+  --ease-overshoot: cubic-bezier(.34, 1.56, .64, 1);
+  --stagger: 60ms;
+
+  --shadow-frame: 0 18px 50px rgba(0, 0, 0, .5);
+  --pane-left: 232px; --pane-right: 300px;
+}
+
+/* one switch governs CSS and canvas: the motion module sets this attribute */
+:root[data-motion="reduced"] {
+  --dur-fast: 1ms; --dur-base: 1ms; --dur-slow: 1ms; --dur-hp: 1ms; --stagger: 0ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) { --dur-fast: 1ms; --dur-base: 1ms; --dur-slow: 1ms; --dur-hp: 1ms; --stagger: 0ms; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
