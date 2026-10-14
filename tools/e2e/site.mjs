@@ -1,0 +1,25 @@
+import { chromium } from "playwright-core";
+import { mkdirSync } from "node:fs";
+const url = process.argv[2] ?? "http://127.0.0.1:8790/", out = "/tmp/claude-1000/shots"; mkdirSync(out, { recursive: true });
+const browser = await chromium.launch({ executablePath: "/usr/bin/chromium", args: ["--no-sandbox"] });
+const errors = [];
+const open = async (w, h) => { const p = await browser.newPage({ viewport: { width: w, height: h } }); p.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); }); p.on("pageerror", (e) => errors.push("PAGEERROR " + e.message)); await p.goto(url, { waitUntil: "networkidle" }); await p.waitForTimeout(700); return p; };
+const nav = async (p, name) => { await p.locator(".s-nav").getByRole("button", { name }).click(); await p.waitForTimeout(500); };
+
+const home = await open(1280, 2300);
+await home.screenshot({ path: `${out}/site-home.png` });
+const gh = home.locator(".s-head a.gh-stars");
+console.log("github link:", await gh.getAttribute("href"), "| opens in new tab:", await gh.getAttribute("target"), "| rel:", await gh.getAttribute("rel"));
+const box = await gh.boundingBox(); console.log("github link in upper right:", box.x > 1280 * 0.6 && box.y < 80, JSON.stringify({ x: Math.round(box.x), y: Math.round(box.y) }));
+await home.getByRole("button", { name: "How it works" }).first().click(); await home.waitForTimeout(500);
+await home.screenshot({ path: `${out}/site-learn.png`, clip: { x: 0, y: 0, width: 1280, height: 760 } });
+await home.locator(".s-brand").first().click(); await home.waitForTimeout(300);
+await home.getByText("Other ways to play").click();
+await home.getByRole("button", { name: "Leaderboard" }).click(); await home.waitForTimeout(500);
+await home.screenshot({ path: `${out}/site-leaderboard.png`, clip: { x: 0, y: 0, width: 1280, height: 760 } });
+await home.locator(".s-head").getByRole("button", { name: "Choose a name" }).click(); await home.waitForTimeout(400);
+await home.screenshot({ path: `${out}/site-account.png`, clip: { x: 0, y: 0, width: 1280, height: 700 } });
+const phone = await open(390, 844);
+await phone.screenshot({ path: `${out}/site-phone-home.png` });
+console.log("errors:", JSON.stringify(errors.filter((e) => !/404/.test(e))));
+await browser.close();

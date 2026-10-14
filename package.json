@@ -1,0 +1,26 @@
+{
+  "name": "sysd-2d",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc -b && pnpm --filter @sysd/web run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "balance": "pnpm --filter @sysd/balance run sweep",
+    "dev": "pnpm --filter @sysd/server run start & pnpm --filter @sysd/web run dev",
+    "build": "pnpm --filter @sysd/web run build",
+    "start": "pnpm --filter @sysd/server run start",
+    "e2e": "node tools/e2e/match.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "playwright-core": "^1.64.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

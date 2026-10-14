@@ -1,0 +1,1309 @@
+<title>System Siege</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    /* Tokyo Night */
+    --bg:#1a1b26; --bg-dark:#16161e; --panel:#1f2335; --panel-2:#222536;
+    --hl:#292e42; --sel:#283457; --border:#2a2e45;
+    --fg:#c0caf5; --fg-2:#a9b1d6; --dim:#565f89;
+    --blue:#7aa2f7; --cyan:#7dcfff; --teal:#73daca; --green:#9ece6a;
+    --yellow:#e0af68; --orange:#ff9e64; --red:#f7768e; --purple:#bb9af7; --magenta:#ff007c;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:#13141c; color:var(--fg);
+    font-family:var(--mono); font-size:13px; line-height:1.5;
+    display:flex; align-items:center; justify-content:center;
+    padding:14px; padding-block:14px; -webkit-font-smoothing:antialiased;
+  }
+
+  .term{
+    width:100%; max-width:1240px; height:min(760px, calc(100vh - 28px));
+    background:var(--bg); border:1px solid var(--border); border-radius:10px;
+    display:flex; flex-direction:column; overflow:hidden;
+    box-shadow:0 18px 50px rgba(0,0,0,.5);
+  }
+
+  /* ------------------------------------------------------------ titlebar */
+  .titlebar{
+    display:flex; align-items:center; gap:10px; padding:9px 12px;
+    background:var(--bg-dark); border-bottom:1px solid var(--border); flex:0 0 auto;
+  }
+  .tb-ico{width:22px; height:22px; display:grid; place-items:center; color:var(--blue); flex:0 0 auto}
+  .crumb{display:flex; align-items:center; gap:7px; font-size:12.5px; min-width:0; flex-wrap:wrap}
+  .crumb .sep{color:var(--dim)}
+  .crumb .dir{color:var(--fg-2)}
+  .crumb .cur{color:var(--blue); font-weight:600}
+  .tb-right{margin-left:auto; display:flex; align-items:center; gap:6px}
+  .pill{
+    font-size:11px; color:var(--dim); border:1px solid var(--border); border-radius:5px;
+    padding:2px 8px; white-space:nowrap;
+  }
+  .pill.on{color:var(--green); border-color:#2c3b2e; background:#1b2420}
+  .pill.hot{color:var(--red); border-color:#3a2630; background:#241a21}
+
+  /* --------------------------------------------------------------- panes */
+  .panes{flex:1 1 auto; display:grid; grid-template-columns:216px 1fr 252px; min-height:0}
+  .pane{min-width:0; min-height:0; display:flex; flex-direction:column; overflow:hidden}
+  .pane + .pane{border-left:1px solid var(--border)}
+  .pane-h{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:8px 12px; font-size:11px; color:var(--dim);
+    border-bottom:1px solid var(--border); flex:0 0 auto; letter-spacing:.02em;
+  }
+  .pane-h b{color:var(--fg-2); font-weight:500}
+  .pane-b{flex:1 1 auto; overflow-y:auto; padding:6px}
+  .pane-b::-webkit-scrollbar{width:8px}
+  .pane-b::-webkit-scrollbar-thumb{background:var(--hl); border-radius:4px}
+
+  /* ---------------------------------------------------------- list rows  */
+  .row{
+    display:flex; align-items:center; gap:9px; padding:6px 8px; border-radius:6px;
+    cursor:grab; user-select:none; touch-action:none; color:var(--fg-2); font-size:12.5px;
+    border:1px solid transparent;
+  }
+  .row:hover{background:var(--hl)}
+  .row.sel{background:var(--sel); color:var(--fg); border-color:#3d4a73}
+  .row.off{opacity:.3; cursor:not-allowed}
+  .row .ic{width:18px; height:18px; flex:0 0 auto; display:grid; place-items:center}
+  .row .nm{flex:1 1 auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .row .meta{font-size:11px; color:var(--dim); flex:0 0 auto}
+  .row.act:hover{background:var(--hl); border-color:var(--border)}
+  .row.act{cursor:pointer}
+  .row.act.key .nm{color:var(--fg)}
+
+  .ghost{
+    position:fixed; z-index:50; pointer-events:none; display:flex; align-items:center; gap:8px;
+    padding:6px 10px; border-radius:7px; background:var(--sel); border:1px solid #3d4a73;
+    color:var(--fg); font-size:12.5px; box-shadow:0 8px 22px rgba(0,0,0,.55);
+    transform:translate(-50%,-50%);
+  }
+
+  /* -------------------------------------------------------------- canvas */
+  .canvaswrap{position:relative; flex:1 1 auto; min-height:0; background:var(--bg)}
+  canvas{display:block; width:100%; height:100%; touch-action:none; cursor:default}
+  canvas.grabbing{cursor:grabbing}
+
+  /* ------------------------------------------------------------ controls */
+  .grp{padding:8px 10px; border-bottom:1px solid var(--border)}
+  .grp:last-child{border-bottom:0}
+  .grp h4{
+    margin:0 0 7px; font-size:10.5px; font-weight:500; color:var(--dim);
+    letter-spacing:.06em; text-transform:uppercase;
+  }
+  .kv{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:3px 0; font-size:12px}
+  .kv .k{color:var(--dim)}
+  .kv .v{color:var(--fg)}
+  .stepper{display:flex; align-items:center; gap:5px}
+  .stepper button{
+    width:20px; height:20px; padding:0; line-height:1; border-radius:4px; cursor:pointer;
+    background:var(--panel); border:1px solid var(--border); color:var(--fg-2); font-family:var(--mono); font-size:12px;
+  }
+  .stepper button:hover{border-color:var(--blue); color:var(--blue)}
+  .stepper .n{min-width:46px; text-align:right; color:var(--fg)}
+  .sw{
+    width:34px; height:18px; border-radius:9px; background:var(--hl); border:1px solid var(--border);
+    position:relative; cursor:pointer; padding:0; flex:0 0 auto;
+  }
+  .sw::after{content:""; position:absolute; top:2px; left:2px; width:12px; height:12px;
+    border-radius:50%; background:var(--dim); transition:transform .16s, background .16s}
+  .sw[aria-pressed="true"]{background:#1d2b3a; border-color:#2d4a5c}
+  .sw[aria-pressed="true"]::after{transform:translateX(16px); background:var(--cyan)}
+
+  .btn{
+    display:block; width:100%; padding:7px 10px; border-radius:6px; cursor:pointer;
+    font-family:var(--mono); font-size:12.5px; text-align:center;
+    background:var(--panel); border:1px solid var(--border); color:var(--fg-2);
+  }
+  .btn:hover:not(:disabled){background:var(--hl); color:var(--fg); border-color:#3a4160}
+  .btn:disabled{opacity:.33; cursor:not-allowed}
+  .btn.go{background:#1b2a3d; border-color:#2f4a6b; color:var(--blue); font-weight:600}
+  .btn.go:hover:not(:disabled){background:#22364f; color:#9ab8ff}
+  .btn.warn{color:var(--red)} .btn.warn:hover:not(:disabled){border-color:#4a2a35; background:#2a1c24}
+  .btn + .btn{margin-top:6px}
+
+  .bar{height:4px; border-radius:2px; background:var(--hl); overflow:hidden; margin-top:6px}
+  .bar i{display:block; height:100%; border-radius:2px; background:var(--blue); transition:width .35s ease}
+  .bar.over i{background:var(--red)}
+
+  /* ------------------------------------------------------------ hp strip */
+  .hp{display:flex; align-items:center; gap:9px; padding:7px 12px; font-size:11.5px; flex:0 0 auto}
+  .hp.t{border-bottom:1px solid var(--border)}
+  .hp.b{border-top:1px solid var(--border)}
+  .hp .who{width:52px; color:var(--dim)}
+  .hp .track{flex:1 1 auto; height:5px; border-radius:3px; background:var(--hl); overflow:hidden; min-width:40px}
+  .hp .track i{display:block; height:100%; border-radius:3px; transition:width .5s cubic-bezier(.2,.9,.3,1), background .4s}
+  .hp .n{width:52px; text-align:right; color:var(--fg)}
+  .hp .cfg{color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:40%}
+
+  /* ---------------------------------------------------------------- log  */
+  .log{display:flex; flex-direction:column; gap:2px; font-size:11.5px; padding:6px}
+  .log div{display:flex; gap:7px; line-height:1.45; animation:in .25s ease-out}
+  .log .t{color:var(--dim); flex:0 0 auto}
+  .log .m{color:var(--fg-2)}
+  .log .m.hit{color:var(--red)} .log .m.good{color:var(--green)} .log .m.note{color:var(--cyan)}
+  @keyframes in{from{opacity:0; transform:translateY(-2px)}}
+
+  /* ----------------------------------------------------------- statusbar */
+  .statusbar{
+    display:flex; align-items:center; gap:14px; padding:6px 12px; flex:0 0 auto;
+    background:var(--bg-dark); border-top:1px solid var(--border); font-size:11.5px; color:var(--dim);
+    flex-wrap:wrap;
+  }
+  .statusbar kbd{
+    font-family:var(--mono); font-size:10.5px; background:var(--hl); color:var(--fg-2);
+    border:1px solid var(--border); border-radius:4px; padding:1px 5px; margin-right:5px;
+  }
+  .statusbar .sp{margin-left:auto}
+  .statusbar b{color:var(--fg-2); font-weight:500}
+
+  /* ------------------------------------------------------------- overlay */
+  .ov{
+    position:absolute; inset:0; background:rgba(22,22,30,.95); z-index:20;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:16px; padding:28px; text-align:center; overflow-y:auto; animation:fade .22s ease-out;
+  }
+  @keyframes fade{from{opacity:0}}
+  .ov .eyebrow{font-size:11px; color:var(--dim); letter-spacing:.12em; text-transform:uppercase}
+  .ov h2{margin:0; font-size:21px; font-weight:700; color:var(--fg)}
+  .ov h2.win{color:var(--green)} .ov h2.lose{color:var(--red)}
+  .ov p{margin:0; max-width:56ch; color:var(--fg-2); font-size:13px}
+  .specs{display:grid; grid-template-columns:auto 1fr; gap:6px 18px; text-align:left; font-size:12.5px}
+  .specs span{color:var(--dim)} .specs b{color:var(--fg); font-weight:500}
+  .notes{display:flex; flex-direction:column; gap:8px; max-width:62ch; margin:0; padding:0; text-align:left}
+  .notes li{
+    list-style:none; padding-left:11px; border-left:2px solid var(--red);
+    font-size:12.5px; color:var(--fg-2); line-height:1.55; animation:sl .3s ease-out backwards;
+  }
+  .notes li.good{border-color:var(--green)}
+  .notes li b{color:var(--fg); font-weight:600}
+  .notes li:nth-child(2){animation-delay:.06s}
+  .notes li:nth-child(3){animation-delay:.12s}
+  .notes li:nth-child(4){animation-delay:.18s}
+  @keyframes sl{from{opacity:0; transform:translateX(-7px)}}
+  .ov .btn{width:auto; min-width:210px}
+
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important; transition-duration:.01ms!important}}
+  @media (max-width:900px){
+    .panes{grid-template-columns:168px 1fr}
+    .pane.insp{display:none}
+    .pane.insp.show{display:flex; grid-column:1/-1; border-left:0; border-top:1px solid var(--border)}
+  }
+  @media (max-width:620px){
+    .panes{grid-template-columns:1fr; grid-template-rows:auto 1fr}
+    .pane.pal{max-height:150px; border-left:0; border-bottom:1px solid var(--border)}
+    .pane + .pane{border-left:0}
+  }
+</style>
+
+<div class="term">
+  <div class="titlebar">
+    <span class="tb-ico" id="tbIcon"></span>
+    <div class="crumb">
+      <span class="dir">~</span><span class="sep">/</span>
+      <span class="dir">siege</span><span class="sep">/</span>
+      <span class="cur" id="crumbCur">linksmash</span>
+    </div>
+    <div class="tb-right">
+      <span class="pill" id="pillA"></span>
+      <span class="pill" id="pillB"></span>
+    </div>
+  </div>
+
+  <div class="panes">
+    <aside class="pane pal">
+      <div class="pane-h" id="palH"><b>components</b><span id="palCount"></span></div>
+      <div class="pane-b" id="palB"></div>
+    </aside>
+
+    <main class="pane">
+      <div class="hp t" id="hpT" hidden></div>
+      <div class="canvaswrap" id="cwrap">
+        <canvas id="cv"></canvas>
+        <div class="ov" id="ov" hidden></div>
+      </div>
+      <div class="hp b" id="hpB" hidden></div>
+    </main>
+
+    <aside class="pane insp" id="inspPane">
+      <div class="pane-h" id="inspH"><b>inspector</b></div>
+      <div class="pane-b" id="inspB" style="padding:0"></div>
+    </aside>
+  </div>
+
+  <div class="statusbar" id="status"></div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================================
+   SYSTEM SIEGE — Tokyo Night terminal build
+   Build an architecture under budget, then trade attacks with a rival stack.
+   Damage is simulated: load walks the graph, latency climbs as utilisation
+   approaches 1, timeouts fire, retries amplify. Cascading failure is emergent.
+   ========================================================================== */
+
+const T = {
+  bg:"#1a1b26", panel:"#1f2335", hl:"#292e42", sel:"#283457", border:"#2a2e45",
+  fg:"#c0caf5", fg2:"#a9b1d6", dim:"#565f89",
+  blue:"#7aa2f7", cyan:"#7dcfff", teal:"#73daca", green:"#9ece6a",
+  yellow:"#e0af68", orange:"#ff9e64", red:"#f7768e", purple:"#bb9af7", magenta:"#ff007c"
+};
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ------------------------------------------------------- icons (24x24 d)
+   One path set, two renderers: inline <svg> in the DOM, Path2D on canvas.  */
+const ICON_D = {
+  CLIENT:   "M3 5h18v11H3z M8 20h8 M12 16v4",
+  LB:       "M2 12h4 M6 12l5-6h9 M6 12h14 M6 12l5 6h9",
+  APP:      "M3 4h18v4.5H3z M3 10h18v4.5H3z M3 16h18v4.5H3z M6.3 6.2h1.2 M6.3 12.2h1.2 M6.3 18.2h1.2",
+  CACHE:    "M13 2L4 14h7l-1 8 9-12h-7z",
+  CDN:      "M12 2a10 10 0 100 20 10 10 0 000-20z M2.5 12h19 M12 2a15.5 15.5 0 010 20 15.5 15.5 0 010-20z",
+  DB:       "M12 2.5c4.4 0 8 1.2 8 2.8s-3.6 2.8-8 2.8-8-1.2-8-2.8 3.6-2.8 8-2.8z M4 5.3v13.4c0 1.6 3.6 2.8 8 2.8s8-1.2 8-2.8V5.3 M4 12c0 1.6 3.6 2.8 8 2.8s8-1.2 8-2.8",
+  REPLICA:  "M8 2.5c3.2 0 5.8 .9 5.8 2.1S11.2 6.7 8 6.7 2.2 5.8 2.2 4.6 4.8 2.5 8 2.5z M2.2 4.6v6.2c0 1.2 2.6 2.1 5.8 2.1 M16 9.8c3.2 0 5.8 .9 5.8 2.1s-2.6 2.1-5.8 2.1-5.8-.9-5.8-2.1 2.6-2.1 5.8-2.1z M10.2 11.9v7.5c0 1.2 2.6 2.1 5.8 2.1s5.8-.9 5.8-2.1v-7.5",
+  QUEUE:    "M3.5 5h17 M3.5 10h17 M3.5 15h17 M3.5 20h10",
+  WORKER:   "M12 2.2v3 M12 18.8v3 M2.2 12h3 M18.8 12h3 M5.1 5.1l2.1 2.1 M16.8 16.8l2.1 2.1 M18.9 5.1l-2.1 2.1 M7.2 16.8l-2.1 2.1 M12 8.2a3.8 3.8 0 100 7.6 3.8 3.8 0 000-7.6z",
+  RATELIMIT:"M3 4.5h18l-7 8.2v6.8l-4 2v-8.8z"
+};
+const ICON_P = {};
+Object.keys(ICON_D).forEach(k=>{ ICON_P[k] = new Path2D(ICON_D[k]); });
+const svgIcon = (type, col, size) =>
+  `<svg width="${size||18}" height="${size||18}" viewBox="0 0 24 24" fill="none"
+     stroke="${col}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
+     aria-hidden="true"><path d="${ICON_D[type]}"/></svg>`;
+
+function drawIcon(c, type, cx, cy, size, col, alpha){
+  const p = ICON_P[type]; if(!p) return;
+  c.save();
+  if(alpha != null) c.globalAlpha = alpha;
+  c.translate(cx - size/2, cy - size/2);
+  c.scale(size/24, size/24);
+  c.strokeStyle = col; c.lineWidth = 1.6 * (24/size);
+  c.lineCap = "round"; c.lineJoin = "round";
+  c.stroke(p);
+  c.restore();
+}
+
+/* ------------------------------------------------------------- components */
+const PARTS = {
+  CLIENT:   {name:"client",  cost:0,   cap:1e9,    lat:0,  col:T.blue,    tag:"entry"},
+  LB:       {name:"lb",      cost:60,  cap:60000,  lat:2,  col:T.green,   tag:"edge"},
+  APP:      {name:"app",     cost:80,  cap:4000,   lat:12, col:T.purple,  tag:"compute"},
+  CACHE:    {name:"cache",   cost:70,  cap:45000,  lat:3,  col:T.yellow,  hit:.75, tag:"cache"},
+  CDN:      {name:"cdn",     cost:90,  cap:250000, lat:1,  col:T.cyan,    hit:.60, tag:"cache"},
+  DB:       {name:"db",      cost:150, cap:2500,   lat:30, col:T.red,     tag:"store"},
+  REPLICA:  {name:"replica", cost:100, cap:2500,   lat:30, col:T.orange,  tag:"store"},
+  QUEUE:    {name:"queue",   cost:70,  cap:50000,  lat:5,  col:T.teal,    buffer:true, tag:"async"},
+  WORKER:   {name:"worker",  cost:60,  cap:1800,   lat:35, col:"#9aa5ce", tag:"compute"},
+  RATELIMIT:{name:"limiter", cost:40,  cap:100000, lat:2,  col:T.magenta, shed:.25, tag:"policy"}
+};
+const ORDER = ["LB","APP","CACHE","CDN","DB","REPLICA","QUEUE","WORKER","RATELIMIT"];
+
+const SCENARIO = {
+  id:"linksmash", title:"linksmash",
+  brief:"A URL shortener gone viral. Reads outnumber writes 40 to 1.",
+  rps:12000, slo:200, budget:700,
+  threats:["traffic spike","cache flush","kill node","latency inject"]
+};
+
+/* ---------------------------------------------------------- the simulator */
+function simulate(design, mods){
+  mods = mods || {};
+  const nodes = {}, out = {};
+  design.nodes.forEach(n=>{
+    nodes[n.id] = {
+      id:n.id, type:n.type, def:PARTS[n.type], dead:(mods.killed||[]).includes(n.id),
+      load:0, served:0, dropped:0, lat:0, util:0,
+      latAdd:(mods.latency && mods.latency[n.id]) || 0, capMul: mods.scale ? 1.6 : 1
+    };
+    out[n.id] = [];
+  });
+  design.edges.forEach(e=>{ if(out[e.from]) out[e.from].push(e.to); });
+
+  const pol = design.policy;
+  const entry = design.nodes.find(n=>n.type === "CLIENT");
+  if(!entry) return {fail:1, p99:9999, nodes:[], events:[]};
+
+  let incoming = SCENARIO.rps * (mods.spike || 1);
+  if(mods.shed) incoming *= .6;
+
+  let lost = 0, worst = 0, amplified = 1, retryMul = 1, timedOut = 0;
+  const events = [];
+
+  for(let pass = 0; pass < 2; pass++){
+    Object.values(nodes).forEach(n=>{ n.load=0; n.served=0; n.dropped=0; n.util=0; n.lat=0; });
+    const q = [{id:entry.id, rps:incoming*retryMul, lat:0}];
+    const seen = {}; let maxLat = 0, dropped = 0, guard = 0;
+
+    while(q.length && guard++ < 400){
+      const cur = q.shift(), n = nodes[cur.id];
+      if(!n) continue;
+      if(n.dead){ dropped += cur.rps; continue; }
+
+      n.load += cur.rps;
+      const cap = n.def.cap * n.capMul;
+      const served = Math.min(n.load, cap), over = n.load - served;
+      n.served = served; n.dropped = over; n.util = n.load / cap;
+
+      const u = Math.min(n.util, .97);
+      n.lat = (n.def.lat + n.latAdd) * Math.min(1/(1-u), 14);   // queueing delay
+
+      if(over > 0){ if(n.def.buffer) n.lat += 18; else dropped += over; }
+
+      let fwd = served;
+      if(n.def.shed){ fwd = served*(1 - n.def.shed); dropped += served*n.def.shed; }
+      if(n.def.hit != null) fwd *= (1 - (mods.flush ? 0 : n.def.hit));
+
+      const kids = out[cur.id] || [], lat = cur.lat + n.lat;
+      maxLat = Math.max(maxLat, lat);
+      if(kids.length && fwd > 0){
+        const share = fwd / kids.length;
+        kids.forEach(k=>{ const key = cur.id+">"+k; if(!seen[key]){ seen[key]=1; q.push({id:k, rps:share, lat}); } });
+      }
+    }
+    worst = maxLat; lost = dropped;
+    if(pass === 0 && maxLat > pol.timeout){
+      timedOut = 1;
+      retryMul = pol.breaker ? 1 : 1 + pol.retries;
+      amplified = retryMul;
+    }
+    if(!timedOut) break;
+  }
+
+  const offered = incoming * amplified;
+  let fail = Math.max(0, Math.min(1, lost / Math.max(offered, 1)));
+  if(timedOut) fail = Math.min(1, fail + (pol.breaker ? .10 : .18*pol.retries));
+
+  const hot = Object.values(nodes).filter(n=>!n.dead && n.util > 1).sort((a,b)=>b.util - a.util);
+  if(hot.length) events.push(`${hot[0].def.name} at ${Math.round(hot[0].util*100)}% capacity`);
+  if(timedOut && !pol.breaker && pol.retries > 0) events.push(`retry storm, load x${amplified.toFixed(1)}`);
+  if(timedOut && pol.breaker) events.push("breaker opened");
+
+  return {fail, p99:worst, offered, amplified, timedOut,
+          breaker: pol.breaker && timedOut, events, nodes:Object.values(nodes)};
+}
+const fmt = n => n >= 1000 ? (n/1000).toFixed(n >= 10000 ? 0 : 1)+"k" : Math.round(n)+"";
+function damageFrom(res){
+  const latPen = Math.max(0, Math.min(1, (res.p99 - SCENARIO.slo)/(SCENARIO.slo*2.5)));
+  return Math.round(res.fail*55 + latPen*22);
+}
+
+/* ---------------------------------------------------------------- moves   */
+const MOVES = [
+  {id:"SPIKE", name:"traffic spike",  pp:5, ic:"LB",    col:T.cyan,   blurb:"3.2x load. Finds anything thin on capacity."},
+  {id:"FLUSH", name:"cache flush",    pp:3, ic:"CACHE", col:T.yellow, turns:2, blurb:"Caches go cold for two turns."},
+  {id:"KILL",  name:"kill node",      pp:3, ic:"DB",    col:T.red,    turns:2, blurb:"Downs their busiest node for two turns."},
+  {id:"LAG",   name:"latency inject", pp:5, ic:"WORKER",col:T.purple, turns:2, blurb:"+140ms on the store. Punishes loose timeouts."}
+];
+const OPS = [
+  {id:"FAILOVER", name:"failover",  cd:3, ic:"REPLICA", col:T.green, blurb:"Bring every downed node back."},
+  {id:"SCALE",    name:"scale up",  cd:3, ic:"APP",     col:T.blue,  turns:2, blurb:"+60% capacity for two turns."},
+  {id:"SHED",     name:"shed load", cd:2, ic:"RATELIMIT", col:T.orange, turns:2, blurb:"Drop 40% of traffic. Costs 6 budget."}
+];
+
+/* ------------------------------------------------------------- game state */
+const G = {
+  phase:"title",
+  design:{nodes:[], edges:[], policy:{timeout:250, retries:2, breaker:false}},
+  foe:null, selected:null, hoverId:null, linkFrom:null,
+  you:{hp:100, pp:{}, cd:{}, eff:{}, killed:[]},
+  ai:{hp:100, pp:{}, cd:{}, eff:{}, killed:[]},
+  round:1, maxRounds:8, scouted:false, busy:false, t:0, log:[], mode:null
+};
+const FX = {parts:[], pulses:[], shake:0, hit:null};
+
+const $ = id => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d"), wrap = $("cwrap");
+const palB = $("palB"), palH = $("palH"), palCount = $("palCount");
+const inspB = $("inspB"), inspH = $("inspH");
+const ov = $("ov"), statusEl = $("status");
+const hpT = $("hpT"), hpB = $("hpB");
+let CW = 800, CH = 500;
+
+$("tbIcon").innerHTML = svgIcon("CDN", T.blue, 20);
+
+function fit(){
+  const r = wrap.getBoundingClientRect();
+  if(!r.width || !r.height) return;
+  CW = r.width; CH = r.height;
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.round(CW*dpr); cv.height = Math.round(CH*dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+new ResizeObserver(fit).observe(wrap);
+
+/* ================================================================ drawing */
+function rr(c, x, y, w, h, r){
+  c.beginPath();
+  c.moveTo(x+r, y); c.arcTo(x+w, y, x+w, y+h, r); c.arcTo(x+w, y+h, x, y+h, r);
+  c.arcTo(x, y+h, x, y, r); c.arcTo(x, y, x+w, y, r); c.closePath();
+}
+const NW = 84, NH = 68;         /* node hit box */
+
+function stateOf(util, dead){
+  return dead ? "dead" : util > 1 ? "bad" : util > .8 ? "warn" : "ok";
+}
+const STATE_COL = {ok:null, warn:T.yellow, bad:T.red, dead:T.dim};
+
+/* a node renders as an ICON with a label under it — file-manager style */
+function drawNode(c, node, x, y, sim, o){
+  o = o || {};
+  const def = PARTS[node.type];
+  const st = stateOf(sim ? sim.util : 0, o.dead);
+  const scale = o.scale || 1;
+  const w = NW*scale, h = NH*scale;
+  const iconSize = 30*scale;
+  const col = st === "dead" ? T.dim : st === "bad" ? T.red : def.col;
+
+  if(st === "bad" && !REDUCED){
+    const p = .5 + .5*Math.sin(G.t*0.005);
+    c.save(); c.globalAlpha = .07 + p*.1; c.fillStyle = T.red;
+    rr(c, x-w/2, y-h/2, w, h, 8); c.fill(); c.restore();
+  }
+  if(o.selected || o.hover || o.linking){
+    c.fillStyle = o.selected ? T.sel : T.hl;
+    rr(c, x-w/2, y-h/2, w, h, 7); c.fill();
+    c.strokeStyle = o.selected ? "#3d4a73" : T.border; c.lineWidth = 1;
+    rr(c, x-w/2+.5, y-h/2+.5, w-1, h-1, 7); c.stroke();
+  }
+
+  drawIcon(c, node.type, x, y - 9*scale, iconSize, col, st === "dead" ? .45 : 1);
+
+  if(st === "dead"){
+    c.strokeStyle = T.red; c.lineWidth = 1.4;
+    c.beginPath();
+    c.moveTo(x - iconSize/2.6, y - 9*scale - iconSize/2.6);
+    c.lineTo(x + iconSize/2.6, y - 9*scale + iconSize/2.6);
+    c.stroke();
+  }
+
+  c.textAlign = "center"; c.textBaseline = "alphabetic";
+  c.font = `500 ${11.5*scale}px "JetBrains Mono", monospace`;
+  c.fillStyle = st === "dead" ? T.dim : o.selected ? T.fg : T.fg2;
+  c.fillText(def.name, x, y + 14*scale);
+
+  c.font = `400 ${10*scale}px "JetBrains Mono", monospace`;
+  if(st === "dead"){
+    c.fillStyle = T.red; c.fillText("offline", x, y + 26*scale);
+  } else if(def.cap >= 1e9){
+    c.fillStyle = T.dim; c.fillText("entry", x, y + 26*scale);
+  } else if(sim){
+    c.fillStyle = st === "bad" ? T.red : st === "warn" ? T.yellow : T.dim;
+    c.fillText(`${fmt(sim.load)}/${fmt(def.cap)}`, x, y + 26*scale);
+  } else {
+    c.fillStyle = T.dim; c.fillText(`${fmt(def.cap)} rps`, x, y + 26*scale);
+  }
+
+  if(sim && def.cap < 1e9 && st !== "dead"){
+    const bw = 44*scale, bx = x - bw/2, by = y + 30*scale;
+    c.fillStyle = T.hl; rr(c, bx, by, bw, 2.5*scale, 1.2); c.fill();
+    const f = Math.min(1, sim.util);
+    if(f > 0){
+      c.fillStyle = STATE_COL[st] || def.col;
+      rr(c, bx, by, Math.max(2, bw*f), 2.5*scale, 1.2); c.fill();
+    }
+  }
+  if(o.flash){
+    c.save(); c.globalAlpha = o.flash*.45; c.fillStyle = "#fff";
+    rr(c, x-w/2, y-h/2, w, h, 7); c.fill(); c.restore();
+  }
+}
+
+function drawEdge(c, ax, ay, bx, by, st, scale){
+  const col = st === "bad" || st === "dead" ? T.red : st === "warn" ? T.yellow : "#343a56";
+  c.strokeStyle = col; c.lineWidth = (st === "ok" ? 1 : 1.3);
+  if(st === "dead") c.setLineDash([4,4]);
+  c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke();
+  c.setLineDash([]);
+  if(REDUCED) return;
+  const n = st === "bad" ? 4 : 2, sp = st === "bad" ? .00055 : .00026;
+  for(let i=0;i<n;i++){
+    const t = ((G.t*sp) + i/n) % 1;
+    c.fillStyle = st === "bad" ? T.red : T.cyan;
+    c.globalAlpha = Math.sin(t*Math.PI)*.9;
+    c.beginPath(); c.arc(ax+(bx-ax)*t, ay+(by-ay)*t, 2.2*(scale||1), 0, 7); c.fill();
+  }
+  c.globalAlpha = 1;
+}
+
+function dotGrid(c){
+  c.fillStyle = "#21243a";
+  for(let x = 24; x < CW; x += 28) for(let y = 24; y < CH; y += 28) c.fillRect(x, y, 1, 1);
+}
+
+/* ------------------------------------------------------------- build view */
+function drawBuild(c){
+  c.fillStyle = T.bg; c.fillRect(0,0,CW,CH);
+  dotGrid(c);
+
+  G.design.edges.forEach(e=>{
+    const a = nodeById(e.from), b = nodeById(e.to);
+    if(a && b) drawEdge(c, a.x, a.y, b.x, b.y, "ok", 1);
+  });
+  if(G.linkFrom){
+    const a = nodeById(G.linkFrom);
+    if(a && pointer.x != null){
+      c.strokeStyle = T.blue; c.lineWidth = 1; c.setLineDash([4,4]);
+      c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(pointer.x, pointer.y); c.stroke();
+      c.setLineDash([]);
+    }
+  }
+  G.design.nodes.forEach(n=>{
+    drawNode(c, n, n.x, n.y, null, {
+      selected: G.selected === n.id, hover: G.hoverId === n.id,
+      linking: G.linkFrom === n.id
+    });
+  });
+  if(drag && drag.kind === "new" && drag.over){
+    c.save(); c.globalAlpha = .45;
+    drawNode(c, {type:drag.type}, drag.cx, drag.cy, null, {});
+    c.restore();
+  }
+  drawFX(c);
+
+  if(!G.design.edges.length && G.design.nodes.length < 2){
+    c.textAlign = "center"; c.fillStyle = T.dim;
+    c.font = '400 12.5px "JetBrains Mono", monospace';
+    c.fillText("drag a component from the left pane onto this canvas", CW/2, CH - 28);
+  }
+}
+const nodeById = id => G.design.nodes.find(n=>n.id === id);
+
+/* ------------------------------------------------------------ battle view */
+function fitBox(design, x, y, w, h){
+  const xs = design.nodes.map(n=>n.x), ys = design.nodes.map(n=>n.y);
+  const minx = Math.min(...xs) - 48, maxx = Math.max(...xs) + 48;
+  const miny = Math.min(...ys) - 38, maxy = Math.max(...ys) + 38;
+  const s = Math.min(w/(maxx-minx), h/(maxy-miny), .92);
+  return {s, ox: x + (w - (maxx-minx)*s)/2 - minx*s, oy: y + (h - (maxy-miny)*s)/2 - miny*s};
+}
+function drawStack(c, design, side, res, box, label){
+  const P = id => { const n = design.nodes.find(v=>v.id === id); return n ? {x:n.x*box.s+box.ox, y:n.y*box.s+box.oy} : null; };
+  const st = id => side.killed.includes(id) ? "dead"
+    : stateOf((res.nodes.find(n=>n.id === id)||{}).util || 0, false);
+
+  design.edges.forEach(e=>{
+    const a = P(e.from), b = P(e.to);
+    if(a && b) drawEdge(c, a.x, a.y, b.x, b.y, st(e.to), box.s);
+  });
+  design.nodes.forEach(n=>{
+    const p = P(n.id);
+    drawNode(c, n, p.x, p.y, res.nodes.find(s=>s.id === n.id), {
+      dead: side.killed.includes(n.id), scale: Math.max(.72, box.s),
+      flash: FX.hit && FX.hit.id === n.id ? FX.hit.a : 0
+    });
+  });
+  c.textAlign = "left"; c.font = '500 10.5px "JetBrains Mono", monospace';
+  c.fillStyle = T.dim; c.fillText(label, 14, box.oy - 2 + 10);
+  return P;
+}
+function battleBoxes(){
+  const half = CH/2;
+  return {
+    ai:  fitBox(G.foe,    8, 10, CW-16, half-22),
+    you: fitBox(G.design, 8, half+12, CW-16, half-22)
+  };
+}
+function drawBattle(c){
+  c.fillStyle = T.bg; c.fillRect(0,0,CW,CH);
+  dotGrid(c);
+  c.strokeStyle = T.border; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(12, CH/2); c.lineTo(CW-12, CH/2); c.stroke();
+
+  c.save();
+  if(FX.shake > .3) c.translate((Math.random()*2-1)*FX.shake, (Math.random()*2-1)*FX.shake);
+  const B = battleBoxes();
+  drawStack(c, G.foe,    G.ai,  simulate(G.foe, modsFor(G.ai, G.foe)),        B.ai,  "rival stack");
+  drawStack(c, G.design, G.you, simulate(G.design, modsFor(G.you, G.design)), B.you, "your stack");
+  c.restore();
+  drawFX(c);
+}
+
+/* -------------------------------------------------------------------- FX  */
+function burst(x, y, n, col, sp){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, v = (sp||2.2)*(.3+Math.random());
+    FX.parts.push({x, y, vx:Math.cos(a)*v, vy:Math.sin(a)*v,
+                   life:30+Math.random()*20, r:.8+Math.random()*1.8, col});
+  }
+}
+const pulse = (x,y,col,max) => FX.pulses.push({x, y, r:6, max:max||120, col, life:1});
+function tickFX(){
+  FX.parts.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.vx*=.95; p.vy=p.vy*.95+.04; p.life--; });
+  FX.parts = FX.parts.filter(p=>p.life > 0);
+  FX.pulses.forEach(p=>{ p.r += (p.max-p.r)*.12; p.life -= .03; });
+  FX.pulses = FX.pulses.filter(p=>p.life > 0);
+  if(FX.shake > 0) FX.shake *= .85;
+  if(FX.hit){ FX.hit.a *= .9; if(FX.hit.a < .03) FX.hit = null; }
+}
+function drawFX(c){
+  FX.pulses.forEach(p=>{
+    c.save(); c.globalAlpha = p.life*.5; c.strokeStyle = p.col; c.lineWidth = 1.4;
+    c.beginPath(); c.arc(p.x, p.y, p.r, 0, 7); c.stroke(); c.restore();
+  });
+  FX.parts.forEach(p=>{
+    c.save(); c.globalAlpha = Math.min(1, p.life/24); c.fillStyle = p.col;
+    c.beginPath(); c.arc(p.x, p.y, p.r, 0, 7); c.fill(); c.restore();
+  });
+}
+
+/* ------------------------------------------------------------------ title */
+const DEMO = [
+  {t:"CLIENT", x:.10, y:.5}, {t:"LB", x:.28, y:.5}, {t:"APP", x:.46, y:.28},
+  {t:"APP", x:.46, y:.72}, {t:"CACHE", x:.65, y:.5}, {t:"DB", x:.85, y:.5}
+];
+function drawTitle(c){
+  c.fillStyle = T.bg; c.fillRect(0,0,CW,CH);
+  dotGrid(c);
+  const P = i => ({x: DEMO[i].x*CW, y: DEMO[i].y*CH});
+  [[0,1],[1,2],[1,3],[2,4],[3,4],[4,5]].forEach(([a,b])=>{
+    const A = P(a), B = P(b);
+    drawEdge(c, A.x, A.y, B.x, B.y, b === 5 ? "bad" : "ok", 1);
+  });
+  DEMO.forEach((d,i)=>{
+    const p = P(i);
+    drawNode(c, {type:d.t}, p.x, p.y,
+      {util: i === 5 ? 1.9 : .35, load: i === 5 ? 11800 : 4100}, {scale:.95});
+  });
+  c.textAlign = "center"; c.fillStyle = T.dim;
+  c.font = '400 12px "JetBrains Mono", monospace';
+  c.fillText("one store, no replica — this is what a bottleneck looks like", CW/2, CH - 24);
+}
+
+/* --------------------------------------------------------------- loop     */
+function loop(){
+  G.t += 16;
+  tickFX();
+  if(G.phase === "build") drawBuild(ctx);
+  else if(G.phase === "battle" || G.phase === "over") drawBattle(ctx);
+  else drawTitle(ctx);
+  requestAnimationFrame(loop);
+}
+
+const cost = d => d.nodes.reduce((s,n)=>s + PARTS[n.type].cost, 0);
+
+/* ================================================== drag & canvas pointer */
+let drag = null, ghostEl = null;
+const pointer = {x:null, y:null};
+const toCv = e => { const r = cv.getBoundingClientRect(); return {x:e.clientX - r.left, y:e.clientY - r.top}; };
+const snap = v => Math.round(v/4)*4;
+function nodeAt(p){
+  for(let i = G.design.nodes.length-1; i >= 0; i--){
+    const n = G.design.nodes[i];
+    if(Math.abs(p.x-n.x) < NW/2 && Math.abs(p.y-n.y) < NH/2) return n;
+  }
+  return null;
+}
+function makeGhost(type){
+  const d = PARTS[type];
+  ghostEl = document.createElement("div");
+  ghostEl.className = "ghost";
+  ghostEl.innerHTML = `${svgIcon(type, d.col, 16)}<span>${d.name}</span>`;
+  document.body.appendChild(ghostEl);
+}
+function killGhost(){ if(ghostEl){ ghostEl.remove(); ghostEl = null; } }
+const overCanvas = e => {
+  const r = cv.getBoundingClientRect();
+  return e.clientX > r.left && e.clientX < r.right && e.clientY > r.top && e.clientY < r.bottom;
+};
+
+addEventListener("pointermove", e=>{
+  if(drag){
+    if(drag.kind === "new"){
+      if(ghostEl){ ghostEl.style.left = e.clientX+"px"; ghostEl.style.top = e.clientY+"px"; }
+      drag.over = overCanvas(e);
+      if(drag.over){ const p = toCv(e); drag.cx = snap(p.x); drag.cy = snap(p.y); }
+    } else if(drag.kind === "move"){
+      const p = toCv(e);
+      drag.node.x = snap(Math.max(NW/2, Math.min(CW-NW/2, p.x - drag.dx)));
+      drag.node.y = snap(Math.max(NH/2, Math.min(CH-NH/2, p.y - drag.dy)));
+      if(Math.abs(p.x-drag.sx) > 4 || Math.abs(p.y-drag.sy) > 4) drag.moved = true;
+    }
+    return;
+  }
+  if(G.phase === "build" && overCanvas(e)){
+    const p = toCv(e); pointer.x = p.x; pointer.y = p.y;
+    const n = nodeAt(p);
+    const id = n ? n.id : null;
+    if(id !== G.hoverId){ G.hoverId = id; cv.style.cursor = id ? "grab" : "default"; }
+  } else { G.hoverId = null; pointer.x = null; }
+});
+
+addEventListener("pointerup", e=>{
+  if(!drag) return;
+  const d = drag; drag = null; cv.classList.remove("grabbing");
+  if(d.kind === "new"){
+    killGhost();
+    if(overCanvas(e) && cost(G.design) + PARTS[d.type].cost <= SCENARIO.budget){
+      const p = toCv(e);
+      const n = {id:"n"+Date.now().toString(36)+((Math.random()*999)|0), type:d.type,
+                 x:snap(Math.max(NW/2, Math.min(CW-NW/2, p.x))),
+                 y:snap(Math.max(NH/2, Math.min(CH-NH/2, p.y)))};
+      G.design.nodes.push(n);
+      pulse(n.x, n.y, PARTS[d.type].col, 70);
+      G.selected = n.id;
+      renderAll();
+    } else renderAll();
+    return;
+  }
+  if(d.kind === "move"){
+    if(!d.moved){
+      // treat as a click: first click selects, second click links
+      if(G.linkFrom && G.linkFrom !== d.node.id){
+        const i = G.design.edges.findIndex(x=>x.from === G.linkFrom && x.to === d.node.id);
+        if(i >= 0) G.design.edges.splice(i, 1);
+        else G.design.edges.push({from:G.linkFrom, to:d.node.id});
+        G.linkFrom = null;
+      } else if(G.linkFrom === d.node.id){
+        G.linkFrom = null;
+      } else {
+        G.selected = d.node.id; G.linkFrom = d.node.id;
+      }
+    } else G.selected = d.node.id;
+    renderAll();
+  }
+});
+
+cv.addEventListener("pointerdown", e=>{
+  if(G.phase === "title"){ gotoBrief(); return; }
+  if(G.phase !== "build") return;
+  const p = toCv(e);
+  const n = nodeAt(p);
+  if(n){
+    drag = {kind:"move", node:n, dx:p.x-n.x, dy:p.y-n.y, sx:p.x, sy:p.y, moved:false};
+    cv.classList.add("grabbing");
+  } else {
+    G.selected = null; G.linkFrom = null; renderAll();
+  }
+});
+
+addEventListener("keydown", e=>{
+  if(G.phase !== "build" || !G.selected) return;
+  if(e.key === "Delete" || e.key === "Backspace"){
+    const n = nodeById(G.selected);
+    if(n && n.type !== "CLIENT"){ removeNode(n); e.preventDefault(); }
+  }
+  if(e.key === "Escape"){ G.selected = null; G.linkFrom = null; renderAll(); }
+});
+function removeNode(n){
+  burst(n.x, n.y, 14, T.red, 2.2);
+  G.design.nodes = G.design.nodes.filter(v=>v !== n);
+  G.design.edges = G.design.edges.filter(e=>e.from !== n.id && e.to !== n.id);
+  G.selected = null; G.linkFrom = null;
+  renderAll();
+}
+
+/* ============================================================== rendering */
+function row(opts){
+  const el = document.createElement(opts.button === false ? "div" : "button");
+  el.className = "row" + (opts.cls ? " "+opts.cls : "");
+  el.innerHTML =
+    `<span class="ic">${opts.icon || ""}</span>
+     <span class="nm">${opts.name}</span>
+     ${opts.meta != null ? `<span class="meta">${opts.meta}</span>` : ""}`;
+  if(opts.title) el.title = opts.title;
+  if(opts.disabled) el.disabled = true;
+  return el;
+}
+
+function renderPalette(){
+  if(G.phase === "build"){
+    const spent = cost(G.design);
+    palH.innerHTML = `<b>components</b><span>${ORDER.length} items</span>`;
+    palB.innerHTML = "";
+    ORDER.forEach(t=>{
+      const d = PARTS[t], afford = spent + d.cost <= SCENARIO.budget;
+      const el = row({
+        icon: svgIcon(t, afford ? d.col : T.dim),
+        name: d.name, meta: "$"+d.cost, cls: afford ? "" : "off",
+        title: `${d.name} · ${fmt(d.cap)} rps · ${d.lat}ms${d.hit ? ` · ${Math.round(d.hit*100)}% hit` : ""}`,
+        button:false
+      });
+      if(afford){
+        el.addEventListener("pointerdown", ev=>{
+          ev.preventDefault();
+          drag = {kind:"new", type:t, over:false, cx:0, cy:0};
+          makeGhost(t);
+          ghostEl.style.left = ev.clientX+"px"; ghostEl.style.top = ev.clientY+"px";
+        });
+      }
+      palB.appendChild(el);
+    });
+    return;
+  }
+  if(G.phase === "battle"){
+    const m = G.mode;
+    palH.innerHTML = `<b>${m === "ops" ? "operations" : "attacks"}</b><span>${m === "ops" ? OPS.length : MOVES.length} items</span>`;
+    palB.innerHTML = "";
+    const list = m === "ops" ? OPS : MOVES;
+    list.forEach(mv=>{
+      const avail = !G.busy && (m === "ops" ? !(G.you.cd[mv.id] > 0) : G.you.pp[mv.id] > 0);
+      const el = row({
+        icon: svgIcon(mv.ic, avail ? mv.col : T.dim), name: mv.name,
+        meta: m === "ops" ? (G.you.cd[mv.id] > 0 ? `cd ${G.you.cd[mv.id]}` : "ready")
+                          : `${G.you.pp[mv.id]}/${mv.pp}`,
+        cls: "act" + (avail ? "" : " off"), title: mv.blurb, disabled: !avail
+      });
+      if(avail) el.onclick = ()=> m === "ops" ? ops(mv) : attack(mv);
+      palB.appendChild(el);
+    });
+    const sep = document.createElement("div");
+    sep.style.cssText = "border-top:1px solid var(--border);margin:6px 2px";
+    palB.appendChild(sep);
+    const other = row({icon: svgIcon(m === "ops" ? "LB" : "REPLICA", T.dim),
+      name: m === "ops" ? "attacks" : "operations", meta:"tab", cls:"act"});
+    other.onclick = ()=>{ G.mode = m === "ops" ? "attack" : "ops"; renderPalette(); };
+    palB.appendChild(other);
+    const sc = row({icon: svgIcon("CDN", G.scouted ? T.dim : T.cyan), name:"scout rival",
+      meta: G.scouted ? "done" : "1 turn", cls:"act" + (G.scouted || G.busy ? " off" : ""),
+      disabled: G.scouted || G.busy, title:"Reveal their timeout, retries and breaker."});
+    if(!G.scouted && !G.busy) sc.onclick = scout;
+    palB.appendChild(sc);
+    return;
+  }
+  palH.innerHTML = `<b>components</b><span>${ORDER.length} items</span>`;
+  palB.innerHTML = "";
+  ORDER.forEach(t=>{
+    const d = PARTS[t];
+    palB.appendChild(row({icon:svgIcon(t, d.col), name:d.name, meta:"$"+d.cost, button:false}));
+  });
+}
+
+function renderInspector(){
+  if(G.phase === "battle" || G.phase === "over"){
+    inspH.innerHTML = `<b>event log</b><span>${G.log.length}</span>`;
+    inspB.innerHTML = `<div class="log">${G.log.map(l=>
+      `<div><span class="t">${l.t}</span><span class="m ${l.k||""}">${l.m}</span></div>`).join("")}</div>`;
+    return;
+  }
+  if(G.phase !== "build"){
+    inspH.innerHTML = `<b>preview</b>`;
+    inspB.innerHTML = `<div class="grp" style="color:var(--dim);text-align:center;padding:26px 12px">
+      No preview for this selection</div>`;
+    return;
+  }
+
+  const n = G.selected ? nodeById(G.selected) : null;
+  const p = G.design.policy;
+  const spent = cost(G.design);
+  inspH.innerHTML = `<b>inspector</b><span>${G.design.nodes.length} nodes · ${G.design.edges.length} links</span>`;
+
+  let sel;
+  if(n){
+    const d = PARTS[n.type];
+    const links = G.design.edges.filter(e=>e.from === n.id || e.to === n.id).length;
+    sel = `<div class="grp">
+      <h4>selection</h4>
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+        ${svgIcon(n.type, d.col, 22)}<span style="color:var(--fg);font-size:14px">${d.name}</span>
+      </div>
+      <div class="kv"><span class="k">capacity</span><span class="v">${fmt(d.cap)} rps</span></div>
+      <div class="kv"><span class="k">latency</span><span class="v">${d.lat}ms</span></div>
+      ${d.hit ? `<div class="kv"><span class="k">hit rate</span><span class="v">${Math.round(d.hit*100)}%</span></div>` : ""}
+      ${d.shed ? `<div class="kv"><span class="k">sheds</span><span class="v">${Math.round(d.shed*100)}%</span></div>` : ""}
+      <div class="kv"><span class="k">cost</span><span class="v">$${d.cost}</span></div>
+      <div class="kv"><span class="k">links</span><span class="v">${links}</span></div>
+      ${n.type !== "CLIENT" ? `<button class="btn warn" id="rmNode" style="margin-top:8px">remove  <span style="color:var(--dim)">del</span></button>` : ""}
+    </div>`;
+  } else {
+    sel = `<div class="grp"><h4>selection</h4>
+      <div style="color:var(--dim);padding:10px 0;font-size:12px">
+        No preview for this selection
+      </div></div>`;
+  }
+
+  inspB.innerHTML = sel + `
+    <div class="grp">
+      <h4>policy</h4>
+      <div class="kv"><span class="k">timeout</span>
+        <span class="stepper"><button data-k="timeout" data-d="-50">&minus;</button>
+        <span class="n">${p.timeout}ms</span>
+        <button data-k="timeout" data-d="50">+</button></span></div>
+      <div class="kv"><span class="k">retries</span>
+        <span class="stepper"><button data-k="retries" data-d="-1">&minus;</button>
+        <span class="n">${p.retries}</span>
+        <button data-k="retries" data-d="1">+</button></span></div>
+      <div class="kv"><span class="k">breaker</span>
+        <button class="sw" id="cb" aria-pressed="${p.breaker}" aria-label="circuit breaker"></button></div>
+      ${p.retries > 0 && !p.breaker
+        ? `<div style="color:var(--red);font-size:11px;margin-top:7px;line-height:1.5">
+             ${p.retries} retries with no breaker will amplify your own load.</div>` : ""}
+    </div>
+    <div class="grp">
+      <h4>budget</h4>
+      <div class="kv"><span class="k">spent</span>
+        <span class="v" style="color:${spent > SCENARIO.budget ? "var(--red)" : "var(--fg)"}">$${spent} / $${SCENARIO.budget}</span></div>
+      <div class="bar ${spent > SCENARIO.budget ? "over" : ""}"><i style="width:${Math.min(100, spent/SCENARIO.budget*100)}%"></i></div>
+      <button class="btn go" id="lock" style="margin-top:10px"
+        ${(!G.design.edges.length || spent > SCENARIO.budget) ? "disabled" : ""}>lock in design</button>
+    </div>`;
+
+  const rm = $("rmNode"); if(rm) rm.onclick = ()=> removeNode(n);
+  inspB.querySelectorAll(".stepper button").forEach(b=>{
+    b.onclick = ()=>{
+      const k = b.dataset.k, d = +b.dataset.d;
+      if(k === "timeout") p.timeout = Math.max(50, Math.min(1000, p.timeout + d));
+      else p.retries = Math.max(0, Math.min(4, p.retries + d));
+      renderAll();
+    };
+  });
+  $("cb").onclick = ()=>{ p.breaker = !p.breaker; renderAll(); };
+  const l = $("lock"); if(l) l.onclick = startBattle;
+}
+
+function renderStatus(){
+  if(G.phase === "build"){
+    const spent = cost(G.design);
+    statusEl.innerHTML =
+      `<span><kbd>drag</kbd>place</span>
+       <span><kbd>click</kbd>link two nodes</span>
+       <span><kbd>del</kbd>remove</span>
+       <span class="sp">budget <b>$${spent}</b>/$${SCENARIO.budget}</span>
+       <span><b>${G.design.nodes.length}</b> nodes</span>
+       <span><b>${G.design.edges.length}</b> links</span>`;
+  } else if(G.phase === "battle" || G.phase === "over"){
+    statusEl.innerHTML =
+      `<span>round <b>${Math.min(G.round, G.maxRounds)}</b>/${G.maxRounds}</span>
+       <span>${G.busy ? "resolving…" : "your move"}</span>
+       <span class="sp">${statusLine()}</span>`;
+  } else {
+    statusEl.innerHTML =
+      `<span><kbd>F1</kbd>how it works</span>
+       <span class="sp">damage is simulated, not scripted</span>`;
+  }
+}
+
+function renderPills(){
+  const a = $("pillA"), b = $("pillB");
+  if(G.phase === "build"){
+    const spent = cost(G.design);
+    a.className = "pill" + (spent > SCENARIO.budget ? " hot" : "");
+    a.textContent = `$${spent}/${SCENARIO.budget}`;
+    b.className = "pill"; b.textContent = `${fmt(SCENARIO.rps)} rps · p99<${SCENARIO.slo}ms`;
+  } else if(G.phase === "battle" || G.phase === "over"){
+    a.className = "pill" + (G.you.hp > 40 ? " on" : " hot");
+    a.textContent = `you ${Math.max(0,Math.round(G.you.hp))}`;
+    b.className = "pill" + (G.ai.hp > 40 ? "" : " hot");
+    b.textContent = `rival ${Math.max(0,Math.round(G.ai.hp))}`;
+  } else {
+    a.className = "pill"; a.textContent = SCENARIO.id;
+    b.className = "pill"; b.textContent = "ready";
+  }
+}
+
+function renderAll(){ renderPalette(); renderInspector(); renderStatus(); renderPills(); }
+
+/* ---------------------------------------------------------------- battle  */
+function hpStrip(el, who, key, cfg){
+  const hp = Math.max(0, G[key].hp);
+  const col = hp > 50 ? T.green : hp > 22 ? T.yellow : T.red;
+  el.hidden = false;
+  el.innerHTML = `<span class="who">${who}</span>
+    <span class="track"><i style="width:${hp}%;background:${col}"></i></span>
+    <span class="n">${Math.round(hp)}<span style="color:var(--dim)">/100</span></span>
+    <span class="cfg">${cfg}</span>`;
+}
+function syncHP(){
+  if(G.phase !== "battle" && G.phase !== "over"){ hpT.hidden = hpB.hidden = true; return; }
+  const f = G.foe.policy, y = G.design.policy;
+  hpStrip(hpT, "rival", "ai",
+    G.scouted ? `timeout ${f.timeout}ms · ${f.retries} retries · breaker ${f.breaker?"on":"off"}` : "config unknown");
+  hpStrip(hpB, "you", "you",
+    `timeout ${y.timeout}ms · ${y.retries} retries · breaker ${y.breaker?"on":"off"}`);
+}
+function log(m, k){
+  const d = new Date();
+  const t = String(d.getMinutes()).padStart(2,"0")+":"+String(d.getSeconds()).padStart(2,"0");
+  G.log.unshift({t, m, k});
+  if(G.log.length > 40) G.log.pop();
+  renderInspector();
+}
+function statusLine(){
+  const b = [];
+  if(G.you.eff.flush) b.push(`cache cold ${G.you.eff.flush}`);
+  if(G.you.killed.length) b.push(`${G.you.killed.length} offline`);
+  if(G.you.eff.lag) b.push(`+140ms lag ${G.you.eff.lag}`);
+  if(G.you.eff.scale) b.push(`scaled ${G.you.eff.scale}`);
+  if(G.you.eff.shed) b.push(`shedding ${G.you.eff.shed}`);
+  return b.length ? b.join(" · ") : "all nodes nominal";
+}
+
+function modsFor(s, design, extra){
+  return {
+    killed: s.killed,
+    flush: !!s.eff.flush || !!(extra && extra.flush),
+    spike: (extra && extra.spike) || 1,
+    latency: s.eff.lag ? Object.fromEntries(design.nodes.map(n=>[n.id, PARTS[n.type].tag === "store" ? 140 : 0])) : null,
+    scale: !!s.eff.scale, shed: !!s.eff.shed
+  };
+}
+function busiest(design, s){
+  const r = simulate(design, modsFor(s, design));
+  const live = r.nodes.filter(n=>!n.dead && n.type !== "CLIENT").sort((a,b)=>b.util - a.util);
+  return live.length ? live[0].id : null;
+}
+const wait = ms => new Promise(r=>setTimeout(r, REDUCED ? 16 : ms));
+
+function applyMove(move, defSide, defDesign){
+  const extra = {};
+  if(move.id === "SPIKE") extra.spike = 3.2;
+  if(move.id === "FLUSH") defSide.eff.flush = move.turns;
+  if(move.id === "LAG")   defSide.eff.lag = move.turns;
+  if(move.id === "KILL"){
+    const t = busiest(defDesign, defSide);
+    if(t && !defSide.killed.includes(t)){ defSide.killed.push(t); defSide.eff.killT = move.turns; }
+  }
+  const res = simulate(defDesign, modsFor(defSide, defDesign, extra));
+  const dmg = damageFrom(res);
+  defSide.hp -= dmg;
+  return {res, dmg};
+}
+
+async function resolve(move, by){
+  const you = by === "you";
+  const defKey = you ? "ai" : "you";
+  const defSide = G[defKey], defDesign = you ? G.foe : G.design;
+
+  log(`${you ? "you" : "rival"} used ${move.name}`, "note");
+  renderAll(); await wait(330);
+
+  const B = battleBoxes(), box = you ? B.ai : B.you;
+  const posOf = id => { const n = defDesign.nodes.find(v=>v.id === id); return n ? {x:n.x*box.s+box.ox, y:n.y*box.s+box.oy} : {x:CW/2, y:CH/2}; };
+
+  if(move.id === "KILL"){
+    const t = busiest(defDesign, defSide);
+    if(t){ const p = posOf(t); FX.hit = {id:t, a:1}; pulse(p.x, p.y, T.red, 110); burst(p.x, p.y, 20, T.red, 3.2); }
+  } else {
+    const last = defDesign.nodes[defDesign.nodes.length-1];
+    const p = posOf(last.id);
+    pulse(p.x, p.y, move.col, 160); burst(p.x, p.y, 12, move.col, 2);
+  }
+  FX.shake = 5; await wait(380);
+
+  const {res, dmg} = applyMove(move, defSide, defDesign);
+  FX.shake = Math.min(13, 4 + dmg*.3);
+  syncHP(); renderPills();
+
+  log(`${Math.round(res.fail*100)}% requests failed · p99 ${Math.round(res.p99)}ms · -${dmg}`, dmg > 14 ? "hit" : "");
+  if(res.amplified > 1.05) log(`retry storm — load amplified ${res.amplified.toFixed(1)}x`, "hit");
+  else if(res.breaker) log("circuit breaker cut the retry loop", "good");
+  renderAll(); await wait(560);
+}
+
+async function attack(move){
+  if(G.busy) return;
+  G.busy = true; G.you.pp[move.id]--; renderAll();
+  await resolve(move, "you");
+  G.busy = false; endTurn();
+}
+async function ops(op){
+  if(G.busy) return;
+  G.busy = true; G.you.cd[op.id] = op.cd; renderAll();
+  log(`you used ${op.name}`, "note"); await wait(320);
+  const B = battleBoxes();
+  if(op.id === "FAILOVER"){ G.you.killed = []; G.you.eff.killT = 0;
+    pulse(CW/2, B.you.oy + CH/4, T.green, 180); log("downed nodes are back online", "good"); }
+  if(op.id === "SCALE"){ G.you.eff.scale = op.turns;
+    pulse(CW/2, B.you.oy + CH/4, T.blue, 180); log("capacity up 60% for two turns", "good"); }
+  if(op.id === "SHED"){ G.you.eff.shed = op.turns; G.you.hp -= 6;
+    log("shedding 40% of traffic, -6 budget"); }
+  syncHP(); renderAll(); await wait(340);
+  G.busy = false; endTurn();
+}
+async function scout(){
+  if(G.busy) return;
+  G.busy = true; G.scouted = true; renderAll();
+  const p = G.foe.policy;
+  log(`scouted: timeout ${p.timeout}ms, ${p.retries} retries, breaker ${p.breaker ? "on" : "off"}`, "note");
+  if(!p.breaker && p.retries >= 2) log("no breaker on three retries — that is an amplifier", "good");
+  syncHP(); await wait(460);
+  G.busy = false; endTurn();
+}
+
+function endTurn(){ if(over()) return; renderAll(); setTimeout(aiTurn, 400); }
+
+async function aiTurn(){
+  if(G.phase !== "battle") return;
+  G.busy = true; renderAll();
+
+  if(G.ai.hp < 38){
+    const r = OPS.find(o=>!(G.ai.cd[o.id] > 0) && (o.id !== "FAILOVER" || G.ai.killed.length));
+    if(r && Math.random() < .65){
+      G.ai.cd[r.id] = r.cd;
+      log(`rival used ${r.name}`, "note");
+      if(r.id === "FAILOVER") G.ai.killed = [];
+      if(r.id === "SCALE") G.ai.eff.scale = r.turns;
+      if(r.id === "SHED"){ G.ai.eff.shed = r.turns; G.ai.hp -= 6; }
+      syncHP(); renderAll(); await wait(520);
+      G.busy = false; return round();
+    }
+  }
+  const opts = MOVES.filter(m=>G.ai.pp[m.id] > 0);
+  if(!opts.length){ log("rival has no attacks left", "good"); G.busy = false; return round(); }
+
+  let best = opts[0], bestD = -1;
+  opts.forEach(m=>{
+    const probe = {eff:Object.assign({}, G.you.eff), killed:G.you.killed.slice()};
+    const extra = {};
+    if(m.id === "SPIKE") extra.spike = 3.2;
+    if(m.id === "FLUSH") probe.eff.flush = 2;
+    if(m.id === "LAG")   probe.eff.lag = 2;
+    if(m.id === "KILL"){ const t = busiest(G.design, probe); if(t) probe.killed.push(t); }
+    const d = damageFrom(simulate(G.design, modsFor(probe, G.design, extra)));
+    if(d > bestD){ bestD = d; best = m; }
+  });
+  G.ai.pp[best.id]--;
+  await resolve(best, "ai");
+  G.busy = false; round();
+}
+
+function round(){
+  [G.you, G.ai].forEach(s=>{
+    ["flush","lag","scale","shed","killT"].forEach(k=>{
+      if(s.eff[k] > 0){ s.eff[k]--; if(s.eff[k] === 0 && k === "killT") s.killed = []; }
+    });
+    Object.keys(s.cd).forEach(k=>{ if(s.cd[k] > 0) s.cd[k]--; });
+  });
+  G.round++;
+  if(over()) return;
+  renderAll();
+}
+function over(){
+  if(G.you.hp <= 0 || G.ai.hp <= 0 || G.round > G.maxRounds){
+    G.phase = "over";
+    const won = G.ai.hp <= 0 ? true : G.you.hp <= 0 ? false : G.you.hp > G.ai.hp;
+    const tie = G.you.hp === G.ai.hp && G.you.hp > 0 && G.ai.hp > 0;
+    setTimeout(()=>result(won, tie), 600);
+    return true;
+  }
+  return false;
+}
+
+/* ---------------------------------------------------------------- screens */
+const showOv = h => { ov.hidden = false; ov.innerHTML = h; };
+const hideOv = () => { ov.hidden = true; ov.innerHTML = ""; };
+
+function gotoTitle(){
+  G.phase = "title"; $("crumbCur").textContent = SCENARIO.id;
+  hpT.hidden = hpB.hidden = true;
+  showOv(`
+    <div class="eyebrow">system siege</div>
+    <h2>Design it. Then watch them break it.</h2>
+    <p>Build an architecture under budget, then trade attacks with a rival stack until one error budget hits zero.
+       Damage is simulated — capacity, queueing latency, timeouts and retry amplification decide it.</p>
+    <p style="color:var(--dim);font-size:12px">The best attacks don't overpower a design. They make it kill itself.</p>
+    <button class="btn go" id="start">start</button>`);
+  $("start").onclick = gotoBrief;
+  renderAll();
+}
+
+function gotoBrief(){
+  G.phase = "brief";
+  showOv(`
+    <div class="eyebrow">scenario</div>
+    <h2>${SCENARIO.title}</h2>
+    <p>${SCENARIO.brief}</p>
+    <div class="specs">
+      <span>traffic</span><b>${fmt(SCENARIO.rps)} rps, read-heavy</b>
+      <span>latency slo</span><b>p99 under ${SCENARIO.slo}ms</b>
+      <span>budget</span><b>$${SCENARIO.budget}</b>
+      <span>known threats</span><b>${SCENARIO.threats.join(" · ")}</b>
+    </div>
+    <p style="color:var(--dim);font-size:12px">The palette holds more than you can afford, and one component is a trap.</p>
+    <button class="btn go" id="go">open the editor</button>`);
+  $("go").onclick = ()=>{
+    hideOv(); G.phase = "build";
+    if(!G.design.nodes.length)
+      G.design.nodes.push({id:"client", type:"CLIENT", x:snap(Math.min(110, CW*.14)), y:snap(CH/2)});
+    renderAll();
+  };
+  renderAll();
+}
+
+const foeDesign = () => {
+  const w = CW, h = CH;
+  const X = f => snap(w*f), Y = f => snap(h*f);
+  return {
+    nodes:[{id:"f0",type:"CLIENT",x:X(.10),y:Y(.5)},{id:"f1",type:"LB",x:X(.26),y:Y(.5)},
+           {id:"f2",type:"APP",x:X(.44),y:Y(.22)},{id:"f3",type:"APP",x:X(.44),y:Y(.5)},
+           {id:"f4",type:"APP",x:X(.44),y:Y(.78)},{id:"f5",type:"CACHE",x:X(.64),y:Y(.5)},
+           {id:"f6",type:"DB",x:X(.84),y:Y(.5)}],
+    edges:[{from:"f0",to:"f1"},{from:"f1",to:"f2"},{from:"f1",to:"f3"},{from:"f1",to:"f4"},
+           {from:"f2",to:"f5"},{from:"f3",to:"f5"},{from:"f4",to:"f5"},{from:"f5",to:"f6"}],
+    policy:{timeout:300, retries:3, breaker:false}       /* no breaker on 3 retries */
+  };
+};
+
+function startBattle(){
+  G.phase = "battle"; G.foe = foeDesign(); G.mode = "attack";
+  G.you = {hp:100, pp:{}, cd:{}, eff:{}, killed:[]};
+  G.ai  = {hp:100, pp:{}, cd:{}, eff:{}, killed:[]};
+  MOVES.forEach(m=>{ G.you.pp[m.id] = m.pp; G.ai.pp[m.id] = m.pp; });
+  G.round = 1; G.scouted = false; G.busy = false; G.log = [];
+  G.selected = null; G.linkFrom = null;
+  $("crumbCur").textContent = SCENARIO.id + " / battle";
+  hideOv(); syncHP();
+  log("both systems are live and serving traffic", "note");
+  renderAll();
+}
+
+function result(won, tie){
+  if(!REDUCED){
+    const B = battleBoxes();
+    if(won) for(let i=0;i<4;i++) setTimeout(()=>burst(CW*(.3+Math.random()*.4), B.ai.oy + CH*.15, 16, T.green, 3), i*150);
+    else FX.shake = 11;
+  }
+  const res = simulate(G.design, modsFor(G.you, G.design, {spike:3.2}));
+  const p = G.design.policy, notes = [];
+  const stores = G.design.nodes.filter(n=>PARTS[n.type].tag === "store");
+  const caches = G.design.nodes.filter(n=>PARTS[n.type].tag === "cache");
+
+  if(p.retries > 0 && !p.breaker)
+    notes.push({bad:1, t:`You ran <b>${p.retries} retries with no circuit breaker</b>. Under stress that multiplies your own load — you attacked yourself.`});
+  else if(p.breaker)
+    notes.push({bad:0, t:`Your <b>circuit breaker</b> capped the retry loop. Cheapest resilience on the board.`});
+
+  if(stores.length < 2) notes.push({bad:1, t:`<b>One store, no replica.</b> A single kill took your whole read path with it.`});
+  else notes.push({bad:0, t:`<b>${stores.length} stores</b> meant a kill cost you throughput, not the match.`});
+
+  if(caches.length){
+    const origin = stores.reduce((s,n)=>s + PARTS[n.type].cap, 0);
+    if(origin < SCENARIO.rps*.5)
+      notes.push({bad:1, t:`Your cache hid a thin origin. A flush turned ${fmt(SCENARIO.rps)} rps into a <b>thundering herd</b> against ${fmt(origin)} rps of store.`});
+    else notes.push({bad:0, t:`Your origin survived a <b>cold cache</b> — that is what made the flush survivable.`});
+  } else notes.push({bad:1, t:`<b>No cache.</b> Every read hit the store, and you paid for it in capacity.`});
+
+  if(G.design.nodes.some(n=>n.type === "RATELIMIT"))
+    notes.push({bad:1, t:`The <b>limiter was the trap</b>. Against a spike of legitimate traffic it drops real users and drains the same budget — rate limiting is for abuse, not capacity.`});
+  if(res.p99 > SCENARIO.slo)
+    notes.push({bad:1, t:`Under a 3.2x spike your p99 hit <b>${Math.round(res.p99)}ms</b> against a ${SCENARIO.slo}ms SLO. Latency drains the budget even when nothing drops.`});
+
+  showOv(`
+    <div class="eyebrow">post-incident review</div>
+    <h2 class="${won ? "win" : tie ? "" : "lose"}">${won ? "your stack held" : tie ? "both stacks held" : "your stack fell"}</h2>
+    <p style="font-size:12.5px;color:var(--dim)">
+      you ${Math.max(0,Math.round(G.you.hp))} &nbsp;·&nbsp; rival ${Math.max(0,Math.round(G.ai.hp))} &nbsp;·&nbsp; build $${cost(G.design)}
+    </p>
+    <ul class="notes">${notes.slice(0,4).map(n=>`<li class="${n.bad ? "" : "good"}">${n.t}</li>`).join("")}</ul>
+    <button class="btn go" id="again">rebuild and run it back</button>`);
+  $("again").onclick = ()=>{
+    G.design = {nodes:[{id:"client", type:"CLIENT", x:snap(Math.min(110, CW*.14)), y:snap(CH/2)}],
+                edges:[], policy:{timeout:250, retries:2, breaker:false}};
+    G.selected = null; G.linkFrom = null;
+    FX.parts.length = 0; FX.pulses.length = 0;
+    hpT.hidden = hpB.hidden = true;
+    $("crumbCur").textContent = SCENARIO.id;
+    hideOv(); G.phase = "build"; renderAll();
+  };
+  renderAll();
+}
+
+/* -------------------------------------------------------------------- boot */
+function boot(){ fit(); gotoTitle(); loop(); }
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(boot).catch(boot);
+else boot();
+</script>

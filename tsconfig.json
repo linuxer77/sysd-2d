@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/sim" },
+    { "path": "packages/shared" },
+    { "path": "packages/match" },
+    { "path": "packages/run" },
+    { "path": "apps/server" },
+    { "path": "tools/balance" }
+  ]
+}
